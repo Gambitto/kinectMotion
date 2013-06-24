@@ -30,9 +30,46 @@ class ModalFilter
 {
 public:
   static bool
+  calculateDecoupledDistanceClouds(const pcl::PointCloud<pcl::PointXYZ>& input_cloud, std::vector<pcl::PointCloud<pcl::PointXYZ> >& output_clouds)
+  {
+    if(input_cloud.empty())
+    {
+        std::cout << std::endl << "ModalFilter::calculateDecoupledDistanceClouds ERROR : input cloud is empty " << std::endl;
+        return false;
+    }
+
+    output_clouds.clear();
+
+    for(pcl::PointCloud<pcl::PointXYZ>::const_iterator outter_it = input_cloud.begin(); outter_it != input_cloud.end(); outter_it++)
+    {
+      pcl::PointCloud<pcl::PointXYZ> inner_cloud;
+
+      for(pcl::PointCloud<pcl::PointXYZ>::const_iterator inner_it = input_cloud.begin(); inner_it != input_cloud.end(); inner_it++)
+      {
+        pcl::PointXYZ distance;
+
+        if(inner_it != outter_it)
+        {
+          distance.x = outter_it->x - inner_it->x;
+          distance.y = outter_it->y - inner_it->y;
+          distance.z = outter_it->z - inner_it->z;
+          inner_cloud.push_back(distance);
+        }
+
+      }
+
+      output_clouds.push_back(inner_cloud);
+    }
+
+    return true;
+  }
+
+
+  /* The use of this function should be protected by a mutex. */
+  static bool
   filter(pcl::PointCloud<pcl::PointXYZ>& source_cloud, pcl::PointCloud<pcl::PointXYZ>& target_cloud)
   {
-    // the two input clouds must have the same size
+    /* The two input clouds must have the same size */
     if(source_cloud.size() != target_cloud.size())
     {
       std::cerr << "ModalFilter::filter Error = The input clouds have a different size";
@@ -41,11 +78,11 @@ public:
 
     std::cout << std::endl << "The source and target clouds have " << source_cloud.size() << " elements." << std::endl;
 
-    // vectors containing the distance between each point and the other cloud's elements
+    /* vectors containing the distance between each point and the other cloud's elements */
     std::vector<pcl::PointCloud<pcl::PointXYZ> > source_distance;
     std::vector<pcl::PointCloud<pcl::PointXYZ> > target_distance;
 
-    // Calculate source_distance. Find the distance vector for the source_cloud's elements
+    /* Calculate source_distance. Find the distance vector for the source_cloud's elements */
     for(int i = 0; i < source_cloud.size(); i++)
     {
       pcl::PointCloud<pcl::PointXYZ> distance_inner_cloud;
