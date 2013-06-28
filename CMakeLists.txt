@@ -7,6 +7,11 @@ set(OpenCV_DIR "/opt/ros/groovy/share/OpenCV")
 ## is used, also find other catkin packages
 find_package(catkin REQUIRED COMPONENTS OpenCV cv_bridge pcl pcl_ros roscpp std_msgs)
 
+set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -Wall")
+
+set(CMAKE_CSS_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -Wall")
+
+
 ## System dependencies are found with CMake's conventions
 # find_package(Boost REQUIRED COMPONENTS system)
 

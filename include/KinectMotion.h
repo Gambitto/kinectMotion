@@ -29,17 +29,19 @@
 class ModalFilter
 {
 public:
+
   static bool
-  calculateDecoupledDistanceClouds(const pcl::PointCloud<pcl::PointXYZ>& input_cloud, std::vector<pcl::PointCloud<pcl::PointXYZ> >& output_clouds)
+  calculateDecoupledDistanceClouds (const pcl::PointCloud<pcl::PointXYZ>& input_cloud, std::vector<pcl::PointCloud<pcl::PointXYZ> >& output_clouds)
   {
     if(input_cloud.empty())
     {
         std::cout << std::endl << "ModalFilter::calculateDecoupledDistanceClouds ERROR : input cloud is empty " << std::endl;
-        return false;
+        return (false);
     }
 
     output_clouds.clear();
 
+    /* Generate the relative distance clouds */
     for(pcl::PointCloud<pcl::PointXYZ>::const_iterator outter_it = input_cloud.begin(); outter_it != input_cloud.end(); outter_it++)
     {
       pcl::PointCloud<pcl::PointXYZ> inner_cloud;
@@ -61,9 +63,48 @@ public:
       output_clouds.push_back(inner_cloud);
     }
 
-    return true;
+    return (true);
   }
 
+  /* Returns c = a-b */
+  static bool
+  calculateErrorDistanceClouds(const std::vector<pcl::PointCloud<pcl::PointXYZ> >& clouds_vector_a, const std::vector<pcl::PointCloud<pcl::PointXYZ> >& clouds_vector_b, std::vector<pcl::PointCloud<pcl::PointXYZ> >& clouds_vector_c)
+  {
+    /*vector containing the error between the source and target distance vectors*/
+    clouds_vector_c.clear();
+
+    if( clouds_vector_a.size() != clouds_vector_b.size() )
+    {
+      /* Error, Not matching input clouds */
+        std::cout << std::endl << "ModalFilter::calculateErrorDistanceClouds Error : Input vector clouds don't have the same size " << std::endl;
+      return (false);
+    }
+
+    /* find the "magnitud" error between the source and target distance vectors */
+    for(int i = 0; i < clouds_vector_a.size(); i++)
+    {
+
+      if(clouds_vector_a[i].size() != clouds_vector_b[i].size())
+      {
+        clouds_vector_c.clear();
+        std::cout << std::endl << "ModalFilter::calculateErrorDistanceClouds Error : Input clouds don't have the same size " << std::endl;
+        return (false);
+      }
+
+      pcl::PointCloud<pcl::PointXYZ> error_inner_cloud;
+      for(int j = 0; j < clouds_vector_a[i].size() ; j++)
+      {
+        pcl::PointXYZ error;
+        error.x = (clouds_vector_a[i]).points[j].x - (clouds_vector_b[i]).points[j].x;
+        error.y = (clouds_vector_a[i]).points[j].y - (clouds_vector_b[i]).points[j].y;
+        error.z = (clouds_vector_a[i]).points[j].z - (clouds_vector_b[i]).points[j].z;
+        error_inner_cloud.push_back(error);
+      }
+      clouds_vector_c.push_back(error_inner_cloud);
+    }
+
+    return (true);
+  }
 
   /* The use of this function should be protected by a mutex. */
   static bool
@@ -73,7 +114,7 @@ public:
     if(source_cloud.size() != target_cloud.size())
     {
       std::cerr << "ModalFilter::filter Error = The input clouds have a different size";
-      return false;
+      return (false);
     }
 
     std::cout << std::endl << "The source and target clouds have " << source_cloud.size() << " elements." << std::endl;
@@ -83,60 +124,30 @@ public:
     std::vector<pcl::PointCloud<pcl::PointXYZ> > target_distance;
 
     /* Calculate source_distance. Find the distance vector for the source_cloud's elements */
-    for(int i = 0; i < source_cloud.size(); i++)
+    bool result = false;
+    result = ModalFilter::calculateDecoupledDistanceClouds(source_cloud, source_distance);
+    if(!result)
     {
-      pcl::PointCloud<pcl::PointXYZ> distance_inner_cloud;
-      for(int j = 0; j < source_cloud.size(); j++)
-      {
-        pcl::PointXYZ distance;
-        if(j != i )
-        {
-          distance.x = source_cloud.points[j].x - source_cloud.points[i].x;
-          distance.y = source_cloud.points[j].y - source_cloud.points[i].y;
-          distance.z = source_cloud.points[j].z - source_cloud.points[i].z;
-          distance_inner_cloud.push_back(distance);
-        }
-      }
-      source_distance.push_back(distance_inner_cloud);
+        return (false);
     }
 
-    // Calculate target_distance. Find the distance vector for the target_cloud's elements
-    for(int i = 0; i < target_cloud.size(); i++)
+    result = ModalFilter::calculateDecoupledDistanceClouds(target_cloud, target_distance);
+    if(!result)
     {
-      pcl::PointCloud<pcl::PointXYZ> distance_inner_cloud;
-      for(int j = 0; j < target_cloud.size(); j++)
-      {
-        pcl::PointXYZ distance;
-        if(j != i )
-        {
-          distance.x = target_cloud.points[j].x - target_cloud.points[i].x;
-          distance.y = target_cloud.points[j].y - target_cloud.points[i].y;
-          distance.z = target_cloud.points[j].z - target_cloud.points[i].z;
-          distance_inner_cloud.push_back(distance);
-        }
-      }
-      target_distance.push_back(distance_inner_cloud);
+        return (false);
     }
 
-    //vector containing the error between the source and target distance vectors
+    /* vector containing the error between the source and target distance vectors */
     std::vector<pcl::PointCloud<pcl::PointXYZ> > error_distance_clouds;
 
-    // find the "magnitud" error between the source and target distance vectors
-    for(int i = 0; i < source_distance.size(); i++)
+    /* find the error vectors */
+    result = ModalFilter::calculateErrorDistanceClouds(source_distance, target_distance, error_distance_clouds);
+    if(!result)
     {
-      pcl::PointCloud<pcl::PointXYZ> error_inner_cloud;
-      for(int j = 0; j < source_distance[i].size() ; j++)
-      {
-        pcl::PointXYZ error;
-        error.x = (source_distance[i]).points[j].x - (target_distance[i]).points[j].x;
-        error.y = (source_distance[i]).points[j].y - (target_distance[i]).points[j].y;
-        error.z = (source_distance[i]).points[j].z - (target_distance[i]).points[j].z;
-        error_inner_cloud.push_back(error);
-      }
-      error_distance_clouds.push_back(error_inner_cloud);
+        return (false);
     }
 
-    // time to remove the outliers :)
+    /* time to remove the outliers :) */
     pcl::StatisticalOutlierRemoval<pcl::PointXYZ> outliers_filter;
     std::vector<pcl::PointCloud<pcl::PointXYZ> > inliers_clouds;
     std::vector<std::vector<int> > inliers_indices;
@@ -155,8 +166,8 @@ public:
         inliers_clouds.push_back(inliers);
         inliers_indices.push_back(indices);
 
-        //std::cout << std::endl << "For the point " << i << " there are " << inliers.size() << " positive hits.\n";
-        //for(int j = 0; j < indices.size(); j++){ std::cout <<indices[j]<<"-"; }
+        std::cout << std::endl << "For the point " << i << " there are " << inliers.size() << " positive hits.\n";
+        for(int j = 0; j < indices.size(); j++){ std::cout <<indices[j]<<"-"; }
         /*for (size_t j = 0; j < inliers.points.size (); ++j)
           std::cerr << "    " << inliers.points[j].x << " "
                               << inliers.points[j].y << " "
@@ -169,7 +180,7 @@ public:
     {
         inliers_clouds_size.push_back(inliers_clouds[i].size());
     }
-    std::vector<int> histogram(100);
+    std::vector<int> histogram(inliers_clouds_size.size());
     for(int i = 0; i < inliers_clouds_size.size(); ++i)
     {
         histogram[inliers_clouds_size[i]]++;
@@ -203,12 +214,12 @@ public:
 
     pcl::PointCloud<pcl::PointXYZ> source_return_cloud;
     pcl::PointCloud<pcl::PointXYZ> target_return_cloud;
-    //std::cout << std::endl << "The valid indices are: " << std::endl;
+    std::cout << std::endl << "The valid indices are: " << std::endl;
     for(int i = 0; i < inliers_histogram.size(); i++)
     {
         if(inliers_histogram[i] == inliers_indices.size())
         {
-            //std::cout << "-" << i  ;
+            std::cout << "-" << i  ;
             source_return_cloud.push_back(source_cloud.points[i]);
             target_return_cloud.push_back(target_cloud.points[i]);
         }

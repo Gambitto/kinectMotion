@@ -227,7 +227,7 @@ KinectMotion::findHighestLikelihoodMatch(Capture &capture, int &most_likely_matc
 
     a_priori_valid_matches_number.push_back(keypoints_clouds_vector[0].size());
     this->mutex_.lock();
-    std::cout << std::endl << "There are " << keypoints_clouds_vector[0].size() << " 3d keypoints matches" << std::endl;
+    std::cout << std::endl << " KinectMotion::findHighestLikelihoodMatch : There are " << keypoints_clouds_vector[0].size() << " 3d keypoints matches" << std::endl;
     this->mutex_.unlock();
 
     if(keypoints_clouds_vector[0].size() > highest_keypoints_hits)
@@ -236,6 +236,16 @@ KinectMotion::findHighestLikelihoodMatch(Capture &capture, int &most_likely_matc
       final_keypoints_clouds_vector = keypoints_clouds_vector;
     }
 
+  }
+
+  if(a_priori_valid_matches_number.size() == 0)
+  {
+      most_likely_matching_capture_index = -1;
+      keypoints_clouds_vector.clear();
+      this->mutex_.lock();
+      std::cout << std::endl << " KinectMotion::findHighestLikelihoodMatch : No matches " << std::endl;
+      this->mutex_.unlock();
+      return keypoints_clouds_vector;
   }
 
   a_priori_valid_matches_number.push_back(1);
@@ -277,15 +287,22 @@ KinectMotion::getRigidBodyTransformation(pcl::PointCloud<pcl::PointXYZ> source_k
   if(source_cloud.size() < 7)
   {
     this->mutex_.lock();
-    std::cout << std::endl << "Not enough points for filtering " << std::endl;
+    std::cout << std::endl << "KinectMotion::getRigidBodyTransformation : Not enough points for filtering " << std::endl;
     this->mutex_.unlock();
-    return false;
+    return (false);
   }
+
   ModalFilter::filter(source_cloud, target_cloud);
+
+  this->icp_.setRANSACOutlierRejectionThreshold(0.0005);
+  this->icp_.setEuclideanFitnessEpsilon(0.005);
 
   this->icp_.setInputCloud(source_cloud.makeShared());
   this->icp_.setInputTarget(target_cloud.makeShared());
-  this->icp_.setRANSACOutlierRejectionThreshold(0.05);
+
+  //this->icp_.setMaxCorrespondenceDistance(0.5);
+  //this->icp_.setTransformationEpsilon(0.5);
+
   pcl::PointCloud<pcl::PointXYZ> aligned_cloud;
   this->icp_.align(aligned_cloud);
 
@@ -300,14 +317,14 @@ KinectMotion::getRigidBodyTransformation(pcl::PointCloud<pcl::PointXYZ> source_k
     this->mutex_.lock();
     std::cout << std::endl << "The ICP algorithm didn't converged." << std::endl;
     this->mutex_.unlock();
-    return false;
+    return (false);
   }
   else if((this->icp_.getFitnessScore() > 0.05))
   {
     this->mutex_.lock();
     std::cout << std::endl << "The ICP fitness score is too high = " << this->icp_.getFitnessScore() << std::endl;
     this->mutex_.unlock();
-    return false;
+    return (false);
   }
 
   Eigen::Matrix4f direct_transformation(this->icp_.getFinalTransformation());
@@ -583,7 +600,6 @@ KinectMotion::get3DModel3 ()
                     0, 1, 0, 0,
                     0, 0, 1, 0,
                     0, 0, 0, 1;
-  std::cout << transformation;
 
   std::vector<cv::KeyPoint> local_image_keypoints;
   cv::Mat local_image_descriptors;
@@ -603,23 +619,28 @@ KinectMotion::get3DModel3 ()
     if(matching_capture_index == -1)
     {
         this->mutex_.lock();
-        std::cout << std::endl << "Warning - KinectMotion::get3dModel() - No matching capture found " << std::endl;
+        std::cout << std::endl << "KinectMotion::get3dModel() - No matching capture found " << std::endl;
         this->mutex_.unlock();
-        return false;
+        return (false);
     }
 
     this->mutex_.lock();
-    std::cout << std::endl << "The most likely match will be with capture number: "<< matching_capture_index << std::endl;
-    std::cout << std::endl << "The Corresponding number of keypoints: "<< keypoints_clouds[0].size() << " - " << keypoints_clouds[1].size() << std::endl;
+    std::cout << std::endl << "KinectMotion::get3dModel() : The most likely match will be with capture number: "<< matching_capture_index << std::endl;
+    if(keypoints_clouds.size() == 0)
+    {
+      std::cout << std::endl << "KinectMotion::get3dModel() : keypoints_clouds vector is empty " << std::endl;
+      return (false);
+    }
+    std::cout << std::endl << "KinectMotion::get3dModel() : The Corresponding number of keypoints: "<< keypoints_clouds[0].size() << " - " << keypoints_clouds[1].size() << std::endl;
     this->mutex_.unlock();
 
     Eigen::Matrix4f transformation;
     if(!this->getRigidBodyTransformation(keypoints_clouds[0], keypoints_clouds[1], transformation))
     {
       this->mutex_.lock();
-      std::cout << std::endl << "Unable to get rigid body transformation " << std::endl;
+      std::cout << std::endl << "KinectMotion::get3dModel() : Unable to get rigid body transformation " << std::endl;
       this->mutex_.unlock();
-      return false;
+      return (false);
     }
 
     Eigen::Matrix4f final_transformation(this->captures_vector_[matching_capture_index].getTransformation()*transformation);
@@ -627,7 +648,7 @@ KinectMotion::get3DModel3 ()
     this->captures_vector_.push_back(capture);
 
     this->mutex_.lock();
-    std::cout << std::endl << "The transformation: " << std::endl << final_transformation<< std::endl;
+    std::cout << std::endl << "KinectMotion::get3dModel() : The transformation: " << std::endl << final_transformation<< std::endl;
     this->mutex_.unlock();
 
     this->complete_cloud_.clear();
@@ -647,7 +668,7 @@ KinectMotion::get3DModel3 ()
 
     this->viewer_->showCloud(this->complete_cloud_.makeShared());
 
-    return true;
+    return (true);
 
   }
 }
